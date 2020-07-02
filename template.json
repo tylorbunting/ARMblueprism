@@ -1,0 +1,341 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "projectName": {
+            "type": "string",
+            "metadata": {
+                "description": "Specifies a project name that is used for generating resource names."
+            }
+        },
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "Specifies the virtual machine administrator username."
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Specifies the virtual machine administrator password."
+            }
+        },
+        "demo-AvailSet-AppServName": {
+            "type": "string",
+            "minLength": 1
+        },
+        "demo-AvailSet-BotServName": {
+            "type": "string",
+            "minLength": 1
+        },
+        "demo-sql-bpAdminLogin": {
+            "type": "string",
+            "minLength": 1
+        },
+        "demo-sql-bpAdminLoginPassword": {
+            "type": "securestring"
+        },
+        "demo-database-bpName": {
+            "type": "string",
+            "minLength": 1
+        },
+        "demo-database-bpCollation": {
+            "type": "string",
+            "minLength": 1,
+            "defaultValue": "SQL_Latin1_General_CP1_CI_AS"
+        },
+        "demo-database-bpEdition": {
+            "type": "string",
+            "defaultValue": "Basic",
+            "allowedValues": [
+                "Basic",
+                "Standard",
+                "Premium"
+            ]
+        },
+        "demo-database-bpRequestedServiceObjectiveName": {
+            "type": "string",
+            "defaultValue": "Basic",
+            "allowedValues": [
+                "Basic",
+                "S0",
+                "S1",
+                "S2",
+                "P1",
+                "P2",
+                "P3"
+            ],
+            "metadata": {
+                "description": "Describes the performance level for Edition"
+            }
+        }
+    },
+    "resources": [
+		{
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2018-12-01",
+            "name": "[variables('nsgName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "AllowBPInbound",
+                        "properties": {
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "8199",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "default-allow-rdp",
+                        "properties": {
+                            "priority": 1000,
+                            "protocol": "TCP",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourceAddressPrefix": "*",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "3389"
+                        }
+                    }
+                ]
+            }
+        },
+		{
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2018-10-01",
+            "name": "[concat(parameters('projectName'),'-vm', copyIndex(1))]",
+            "location": "[resourceGroup().location]",
+            "zones": [
+                "[copyIndex(1)]"
+            ],
+            "copy": {
+                "name": "vmCopy",
+                "count": "[variables('vmCount')]"
+            },
+            "dependsOn": [
+                "networkInterfaceCopy"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "2019-Datacenter",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "[variables('vmStorageAccountType')]"
+                        }
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(parameters('projectName'),'-vm', copyIndex(1), '-networkInterface'))]"
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "[concat(parameters('projectName'),'-vm', copyIndex(1))]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]",
+                    "windowsConfiguration": {
+                        "enableAutomaticUpdates": true,
+                        "provisionVmAgent": true
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2018-12-01",
+            "name": "[concat(parameters('projectName'),'-vm', copyIndex(1), '-publicIp')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard"
+            },
+            "copy": {
+                "name": "publicIPAddressCopy",
+                "count": 3
+            },
+            "properties": {
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Static"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2018-12-01",
+            "name": "[concat(parameters('projectName'),'-vm', copyIndex(1), '-networkInterface')]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "networkInterfaceCopy",
+                "count": 3
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/', variables('vNetName'))]",
+                "[resourceId('Microsoft.Network/loadBalancers/', variables('lbName'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups/', variables('nsgName'))]",
+                "publicIPAddressCopy"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vNetName'), variables('vNetSubnetName'))]"
+                            },
+                            "publicIpAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIpAddresses', concat(parameters('projectName'),'-vm', copyIndex(1), '-publicIp'))]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('lbName'), variables('lbBackendPoolName'))]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+                }
+            }
+        },
+        {
+            "name": "[parameters('demo-AvailSet-AppServName')]",
+            "type": "Microsoft.Compute/availabilitySets",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "demo-AvailSet-AppServ"
+            },
+            "properties": {
+                "platformUpdateDomainCount": 1,
+                "platformFaultDomainCount": 1
+            }
+        },
+        {
+            "name": "[parameters('demo-AvailSet-BotServName')]",
+            "type": "Microsoft.Compute/availabilitySets",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "demo-AvailSet-BotServ"
+            },
+            "properties": {
+                "platformUpdateDomainCount": 1,
+                "platformFaultDomainCount": 1
+            }
+        },
+        {
+            "name": "[variable(vNetName)",
+            "type": "Microsoft.Network/virtualNetworks",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "[variable(vNetName)"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('demo-vNet-BPPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('appSubnet')]",
+                        "properties": {
+                            "addressPrefix": "[variables('appSubnetPrefix')]"
+                        }
+                    },
+                    {
+                        "name": "[variables('botSubnet')]",
+                        "properties": {
+                            "addressPrefix": "[variables('botSubnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('demo-sql-bpName')]",
+            "type": "Microsoft.Sql/servers",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2014-04-01-preview",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "demo-sql-bp"
+            },
+            "properties": {
+                "administratorLogin": "[parameters('demo-sql-bpAdminLogin')]",
+                "administratorLoginPassword": "[parameters('demo-sql-bpAdminLoginPassword')]"
+            },
+            "resources": [
+                {
+                    "name": "AllowAllWindowsAzureIps",
+                    "type": "firewallrules",
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2014-04-01-preview",
+                    "dependsOn": [
+                        "[concat('Microsoft.Sql/servers/', variables('demo-sql-bpName'))]"
+                    ],
+                    "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "0.0.0.0"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[variables('fullyQualifieddemo-database-bpName')]",
+            "type": "Microsoft.Sql/servers/databases",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2014-04-01-preview",
+            "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', variables('demo-sql-bpName'))]"
+            ],
+            "tags": {
+                "displayName": "demo-database-bp"
+            },
+            "properties": {
+                "collation": "[parameters('demo-database-bpCollation')]",
+                "edition": "[parameters('demo-database-bpEdition')]",
+                "maxSizeBytes": "1073741824",
+                "requestedServiceObjectiveName": "[parameters('demo-database-bpRequestedServiceObjectiveName')]"
+            }
+        }
+    ],
+    "variables": {
+        "demo-vNet-BPPrefix": "10.0.0.0/16",
+		"nsgName": "demoAppNSG",
+		"vmCount": "2",
+		"vmSize": "Standard_B2s",
+        "vmStorageAccountType": "Standard_LRS",
+		"vNetName": "demo-vNet-BP",
+		"lbName": "demo-lb",
+		"vNetSubnetName": "[variables('appSubnet')]",
+        "appSubnet": "appSubnet",
+        "appSubnetPrefix": "10.0.0.0/24",
+        "botSubnet": "botSubnet",
+        "botSubnetPrefix": "10.0.1.0/24",
+        "demo-sql-bpName": "[concat('demo-sql-bp', uniqueString(resourceGroup().id))]",
+        "fullyQualifieddemo-database-bpName": "[concat(variables('demo-sql-bpName'), '/', parameters('demo-database-bpName'))]"
+    }
+}
