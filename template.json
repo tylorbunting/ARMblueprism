@@ -70,7 +70,70 @@
             }
         }
     },
-    "resources": [
+    "resources": [{
+            "type": "Microsoft.Network/loadBalancers",
+            "apiVersion": "2018-12-01",
+            "name": "[variables('lbName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "[variables('lbSkuName')]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('lbPublicIpAddressName'))]"
+            ],
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "[variables('lbFrontEndName')]",
+                        "properties": {
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('lbPublicIpAddressName'))]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "[variables('lbBackendPoolName')]"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "AppServerLBRule",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[resourceId('Microsoft.Network/loadBalancers/frontendIPConfigurations', variables('lbName'), variables('lbFrontEndName'))]"
+                            },
+                            "backendAddressPool": {
+                                "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('lbName'), variables('lbBackendPoolName'))]"
+                            },
+                            "protocol": "Tcp",
+                            "frontendPort": 8199,
+                            "backendPort": 8199,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 30,
+                            "enableTcpReset": false,
+                            "loadDistribution": "SourceIPProtocol",
+                            "probe": {
+                                "id": "[resourceId('Microsoft.Network/loadBalancers/probes', variables('lbName'), variables('lbProbeName'))]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "[variables('lbProbeName')]",
+                        "properties": {
+                            "protocol": "Tcp",
+                            "port": 8199,
+                            "requestPath": "/",
+                            "intervalInSeconds": 5,
+                            "numberOfProbes": 2
+                        }
+                    }
+                ]
+            }
+        },
 		{
             "type": "Microsoft.Network/networkSecurityGroups",
             "apiVersion": "2018-12-01",
@@ -323,13 +386,18 @@
         }
     ],
     "variables": {
-        "demo-vNet-BPPrefix": "10.0.0.0/16",
+		"lbName": "demo-lb",
+		"lbPublicIpAddressName": "appServLBIpAddress",
+		"lbFrontEndName": "appServLBFrontEnd",
+		"lbBackendPoolName": "",
+		"lbProbeName": "appServLBBackEnd",
+		"lbSkuName": "Standard",
+		"demo-vNet-BPPrefix": "10.0.0.0/16",
 		"nsgName": "demoAppNSG",
 		"vmCount": "2",
 		"vmSize": "Standard_B2s",
         "vmStorageAccountType": "Standard_LRS",
 		"vNetName": "demo-vNet-BP",
-		"lbName": "demo-lb",
 		"vNetSubnetName": "[variables('appSubnet')]",
         "appSubnet": "appSubnet",
         "appSubnetPrefix": "10.0.0.0/24",
