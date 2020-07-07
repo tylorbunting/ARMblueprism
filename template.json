@@ -74,7 +74,7 @@
         "lbName": "demo-lb",
         "lbPublicIpAddressName": "appServLBIpAddress",
         "lbFrontEndName": "appServLBFrontEnd",
-        "lbBackendPoolName": "",
+        "lbBackendPoolName": "appServLBBackEnd",
         "lbProbeName": "appServLBBackEnd",
         "lbSkuName": "Standard",
         "demo-vNet-BPPrefix": "10.0.0.0/16",
@@ -165,7 +165,6 @@
                         "properties": {
                             "protocol": "Tcp",
                             "port": 8199,
-                            "requestPath": "/",
                             "intervalInSeconds": 5,
                             "numberOfProbes": 2
                         }
