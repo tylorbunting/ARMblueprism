@@ -3,58 +3,57 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
         "projectName": {
-            "type": "string",
+            "type": "String",
             "metadata": {
                 "description": "Specifies a project name that is used for generating resource names."
             }
         },
         "adminUsername": {
-            "type": "string",
+            "type": "String",
             "metadata": {
                 "description": "Specifies the virtual machine administrator username."
             }
         },
         "adminPassword": {
-            "type": "securestring",
+            "type": "SecureString",
             "metadata": {
                 "description": "Specifies the virtual machine administrator password."
             }
         },
         "demo-AvailSet-AppServName": {
-            "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "type": "String"
         },
         "demo-AvailSet-BotServName": {
-            "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "type": "String"
         },
         "demo-sql-bpAdminLogin": {
-            "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "type": "String"
         },
         "demo-sql-bpAdminLoginPassword": {
-            "type": "securestring"
+            "type": "SecureString"
         },
         "demo-database-bpName": {
-            "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "type": "String"
         },
         "demo-database-bpCollation": {
-            "type": "string",
+            "defaultValue": "SQL_Latin1_General_CP1_CI_AS",
             "minLength": 1,
-            "defaultValue": "SQL_Latin1_General_CP1_CI_AS"
+            "type": "String"
         },
         "demo-database-bpEdition": {
-            "type": "string",
             "defaultValue": "Basic",
             "allowedValues": [
                 "Basic",
                 "Standard",
                 "Premium"
-            ]
+            ],
+            "type": "String"
         },
         "demo-database-bpRequestedServiceObjectiveName": {
-            "type": "string",
             "defaultValue": "Basic",
             "allowedValues": [
                 "Basic",
@@ -65,22 +64,62 @@
                 "P2",
                 "P3"
             ],
+            "type": "String",
             "metadata": {
                 "description": "Describes the performance level for Edition"
             }
         }
     },
-    "resources": [{
+    "variables": {
+        "lbName": "demo-lb",
+        "lbPublicIpAddressName": "appServLBIpAddress",
+        "lbFrontEndName": "appServLBFrontEnd",
+        "lbBackendPoolName": "",
+        "lbProbeName": "appServLBBackEnd",
+        "lbSkuName": "Standard",
+        "demo-vNet-BPPrefix": "10.0.0.0/16",
+        "nsgName": "demoAppNSG",
+        "vmCount": 2,
+        "vmSize": "Standard_B2s",
+        "vmStorageAccountType": "Standard_LRS",
+        "vNetName": "demo-vNet-BP",
+        "vNetSubnetName": "[variables('appSubnet')]",
+        "appSubnet": "appSubnet",
+        "appSubnetPrefix": "10.0.0.0/24",
+        "botSubnet": "botSubnet",
+        "botSubnetPrefix": "10.0.1.0/24",
+        "demo-sql-bpName": "[concat('demo-sql-bp', uniqueString(resourceGroup().id))]",
+        "fullyQualifieddemo-database-bpName": "[concat(variables('demo-sql-bpName'), '/', parameters('demo-database-bpName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2018-12-01",
+            "name": "[variables('lbPublicIpAddressName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {
+                "publicIPAddressVersion": "IPv4",
+                "publicIPAllocationMethod": "Static"
+            },
+            "copy": {
+                "name": "publicIPAddressCopy",
+                "count": 1
+            }
+        },
+        {
             "type": "Microsoft.Network/loadBalancers",
             "apiVersion": "2018-12-01",
             "name": "[variables('lbName')]",
             "location": "[resourceGroup().location]",
-            "sku": {
-                "name": "[variables('lbSkuName')]"
-            },
             "dependsOn": [
                 "[resourceId('Microsoft.Network/publicIPAddresses', variables('lbPublicIpAddressName'))]"
             ],
+            "sku": {
+                "name": "[variables('lbSkuName')]"
+            },
             "properties": {
                 "frontendIPConfigurations": [
                     {
@@ -134,7 +173,7 @@
                 ]
             }
         },
-		{
+        {
             "type": "Microsoft.Network/networkSecurityGroups",
             "apiVersion": "2018-12-01",
             "name": "[variables('nsgName')]",
@@ -170,18 +209,11 @@
                 ]
             }
         },
-		{
+        {
             "type": "Microsoft.Compute/virtualMachines",
             "apiVersion": "2018-10-01",
             "name": "[concat(parameters('projectName'),'-vm', copyIndex(1))]",
             "location": "[resourceGroup().location]",
-            "zones": [
-                "[copyIndex(1)]"
-            ],
-            "copy": {
-                "name": "vmCopy",
-                "count": "[variables('vmCount')]"
-            },
             "dependsOn": [
                 "networkInterfaceCopy"
             ],
@@ -219,23 +251,10 @@
                         "provisionVmAgent": true
                     }
                 }
-            }
-        },
-        {
-            "type": "Microsoft.Network/publicIPAddresses",
-            "apiVersion": "2018-12-01",
-            "name": "[concat(parameters('projectName'),'-vm', copyIndex(1), '-publicIp')]",
-            "location": "[resourceGroup().location]",
-            "sku": {
-                "name": "Standard"
             },
             "copy": {
-                "name": "publicIPAddressCopy",
-                "count": 3
-            },
-            "properties": {
-                "publicIPAddressVersion": "IPv4",
-                "publicIPAllocationMethod": "Static"
+                "name": "vmCopy",
+                "count": "[variables('vmCount')]"
             }
         },
         {
@@ -243,10 +262,6 @@
             "apiVersion": "2018-12-01",
             "name": "[concat(parameters('projectName'),'-vm', copyIndex(1), '-networkInterface')]",
             "location": "[resourceGroup().location]",
-            "copy": {
-                "name": "networkInterfaceCopy",
-                "count": 3
-            },
             "dependsOn": [
                 "[resourceId('Microsoft.Network/virtualNetworks/', variables('vNetName'))]",
                 "[resourceId('Microsoft.Network/loadBalancers/', variables('lbName'))]",
@@ -262,9 +277,6 @@
                             "subnet": {
                                 "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vNetName'), variables('vNetSubnetName'))]"
                             },
-                            "publicIpAddress": {
-                                "id": "[resourceId('Microsoft.Network/publicIpAddresses', concat(parameters('projectName'),'-vm', copyIndex(1), '-publicIp'))]"
-                            },
                             "loadBalancerBackendAddressPools": [
                                 {
                                     "id": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', variables('lbName'), variables('lbBackendPoolName'))]"
@@ -276,13 +288,17 @@
                 "networkSecurityGroup": {
                     "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
                 }
+            },
+            "copy": {
+                "name": "networkInterfaceCopy",
+                "count": 3
             }
         },
         {
-            "name": "[parameters('demo-AvailSet-AppServName')]",
             "type": "Microsoft.Compute/availabilitySets",
-            "location": "[resourceGroup().location]",
             "apiVersion": "2015-06-15",
+            "name": "[parameters('demo-AvailSet-AppServName')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [],
             "tags": {
                 "displayName": "demo-AvailSet-AppServ"
@@ -293,10 +309,10 @@
             }
         },
         {
-            "name": "[parameters('demo-AvailSet-BotServName')]",
             "type": "Microsoft.Compute/availabilitySets",
-            "location": "[resourceGroup().location]",
             "apiVersion": "2015-06-15",
+            "name": "[parameters('demo-AvailSet-BotServName')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [],
             "tags": {
                 "displayName": "demo-AvailSet-BotServ"
@@ -307,13 +323,13 @@
             }
         },
         {
-            "name": "[variable(vNetName)",
             "type": "Microsoft.Network/virtualNetworks",
-            "location": "[resourceGroup().location]",
             "apiVersion": "2015-06-15",
+            "name": "[variables('vNetName')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [],
             "tags": {
-                "displayName": "[variable(vNetName)"
+                "displayName": "[variables('vNetName')]"
             },
             "properties": {
                 "addressSpace": {
@@ -338,10 +354,10 @@
             }
         },
         {
-            "name": "[variables('demo-sql-bpName')]",
             "type": "Microsoft.Sql/servers",
-            "location": "[resourceGroup().location]",
             "apiVersion": "2014-04-01-preview",
+            "name": "[variables('demo-sql-bpName')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [],
             "tags": {
                 "displayName": "demo-sql-bp"
@@ -352,10 +368,10 @@
             },
             "resources": [
                 {
-                    "name": "AllowAllWindowsAzureIps",
                     "type": "firewallrules",
-                    "location": "[resourceGroup().location]",
                     "apiVersion": "2014-04-01-preview",
+                    "name": "AllowAllWindowsAzureIps",
+                    "location": "[resourceGroup().location]",
                     "dependsOn": [
                         "[concat('Microsoft.Sql/servers/', variables('demo-sql-bpName'))]"
                     ],
@@ -367,10 +383,10 @@
             ]
         },
         {
-            "name": "[variables('fullyQualifieddemo-database-bpName')]",
             "type": "Microsoft.Sql/servers/databases",
-            "location": "[resourceGroup().location]",
             "apiVersion": "2014-04-01-preview",
+            "name": "[variables('fullyQualifieddemo-database-bpName')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[resourceId('Microsoft.Sql/servers', variables('demo-sql-bpName'))]"
             ],
@@ -384,26 +400,5 @@
                 "requestedServiceObjectiveName": "[parameters('demo-database-bpRequestedServiceObjectiveName')]"
             }
         }
-    ],
-    "variables": {
-		"lbName": "demo-lb",
-		"lbPublicIpAddressName": "appServLBIpAddress",
-		"lbFrontEndName": "appServLBFrontEnd",
-		"lbBackendPoolName": "",
-		"lbProbeName": "appServLBBackEnd",
-		"lbSkuName": "Standard",
-		"demo-vNet-BPPrefix": "10.0.0.0/16",
-		"nsgName": "demoAppNSG",
-		"vmCount": "2",
-		"vmSize": "Standard_B2s",
-        "vmStorageAccountType": "Standard_LRS",
-		"vNetName": "demo-vNet-BP",
-		"vNetSubnetName": "[variables('appSubnet')]",
-        "appSubnet": "appSubnet",
-        "appSubnetPrefix": "10.0.0.0/24",
-        "botSubnet": "botSubnet",
-        "botSubnetPrefix": "10.0.1.0/24",
-        "demo-sql-bpName": "[concat('demo-sql-bp', uniqueString(resourceGroup().id))]",
-        "fullyQualifieddemo-database-bpName": "[concat(variables('demo-sql-bpName'), '/', parameters('demo-database-bpName'))]"
-    }
+    ]
 }
