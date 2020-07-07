@@ -214,9 +214,12 @@
             "name": "[concat(parameters('projectName'),'-vm', copyIndex(1))]",
             "location": "[resourceGroup().location]",
             "dependsOn": [
-                "networkInterfaceCopy"
+                "networkInterfaceCopy",
+                "[parameters('demo-AvailSet-AppServName')]"
             ],
-            "properties": {
+            "properties": "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', parameters('demo-AvailSet-AppServName'))]"
+                },
                 "hardwareProfile": {
                     "vmSize": "[variables('vmSize')]"
                 },
