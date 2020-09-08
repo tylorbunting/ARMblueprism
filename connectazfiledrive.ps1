@@ -1,8 +1,8 @@
 $connectTestResult = Test-NetConnection -ComputerName aihubautostorageaccount.file.core.windows.net -Port 445
 if ($connectTestResult.TcpTestSucceeded) {
     # Save the password so the drive will persist on reboot
-    # $var_password=$args[0]
-    cmd.exe /C "cmdkey /add:`"aihubautostorageaccount.file.core.windows.net`" /user:`"Azure\aihubautostorageaccount`" /pass:`"f1ufjeuly2ha8XtydNcooikU9wKOQC7aVo6+ODuUf+Mt6yORfih4XE6AYe0ZF/pvGei4+i+0m+/wjORhPZhhYw==`""
+    $var_password=$args[0]
+    cmd.exe /C "cmdkey /add:`"aihubautostorageaccount.file.core.windows.net`" /user:`"Azure\aihubautostorageaccount`" /pass:`"$var_password`""
     # Mount the drive
     New-PSDrive -Name R -PSProvider FileSystem -Root "\\aihubautostorageaccount.file.core.windows.net\automationfileshare" -Persist
 } else {
